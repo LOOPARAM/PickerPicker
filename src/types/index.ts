@@ -40,6 +40,7 @@ export interface GameStat {
   score: number
   gauge: number
   perfectCombo: number
+  maxCombo: number
   perfectCount: number
   goodCount: number
   missCount: number

@@ -13,6 +13,7 @@ const INITIAL_STAT: GameStat = {
   score: 0,
   gauge: 100,
   perfectCombo: 0,
+  maxCombo: 0,
   perfectCount: 0,
   goodCount: 0,
   missCount: 0,
