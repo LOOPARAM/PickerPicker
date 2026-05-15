@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { GameData, GamePhase, GameStat, StageData } from '../types'
+import type { GameData, GamePhase, GameStat, KeyMapping, StageData } from '../types'
 import { GameHeader } from './game/GameHeader'
 import { PlayStage } from './game/PlayStage'
 import { PreviewStage } from './game/PreviewStage'
@@ -19,22 +19,39 @@ const INITIAL_STAT: GameStat = {
   missCount: 0,
 }
 
+function shuffleKeyMapping(keyMapping: KeyMapping[]): KeyMapping[] {
+  const entries = keyMapping.map(k => ({ syllable: k.syllable, type: k.type }))
+  for (let i = entries.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[entries[i], entries[j]] = [entries[j], entries[i]]
+  }
+  return keyMapping.map((k, i) => ({ ...k, syllable: entries[i].syllable, type: entries[i].type }))
+}
+
 export function GameScreen({ nickname }: GameScreenProps) {
   const [gameData, setGameData] = useState<GameData | null>(null)
   const [loading, setLoading] = useState(true)
   const [stageIndex, setStageIndex] = useState(0)
   const [phase, setPhase] = useState<GamePhase>('preview')
   const [stat, setStat] = useState<GameStat>(INITIAL_STAT)
+  const [shuffledKeyMapping, setShuffledKeyMapping] = useState<KeyMapping[]>([])
 
   useEffect(() => {
     fetch('/rhythm_stages_001_015.json')
       .then(r => r.json())
       .then((data: GameData) => {
         setGameData(data)
+        setShuffledKeyMapping(shuffleKeyMapping(data.stages[0].keyMapping))
         setLoading(false)
       })
       .catch(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (gameData) {
+      setShuffledKeyMapping(shuffleKeyMapping(gameData.stages[stageIndex].keyMapping))
+    }
+  }, [stageIndex, gameData])
 
   if (loading) {
     return (
@@ -53,12 +70,13 @@ export function GameScreen({ nickname }: GameScreenProps) {
   }
 
   const currentStage: StageData = gameData.stages[stageIndex]
+  const stageWithShuffle: StageData = {
+    ...currentStage,
+    keyMapping: shuffledKeyMapping.length > 0 ? shuffledKeyMapping : currentStage.keyMapping,
+  }
 
   const handlePreviewEnd = () => setPhase('playing')
-
-  const handleStatUpdate = (update: Partial<GameStat>) => {
-    setStat(prev => ({ ...prev, ...update }))
-  }
+  const handleStatUpdate = (update: Partial<GameStat>) => setStat(prev => ({ ...prev, ...update }))
 
   const handleStageComplete = () => {
     const nextIndex = stageIndex + 1
@@ -70,9 +88,7 @@ export function GameScreen({ nickname }: GameScreenProps) {
     }
   }
 
-  const handleGameOver = () => {
-    setPhase('result')
-  }
+  const handleGameOver = () => setPhase('result')
 
   if (phase === 'result') {
     return (
@@ -82,16 +98,13 @@ export function GameScreen({ nickname }: GameScreenProps) {
         </h2>
         <div className="text-center space-y-1 text-base-content/70">
           <p>Score: {stat.score}</p>
+          <p>MAX Combo: {stat.maxCombo}</p>
           <p>PERFECT: {stat.perfectCount} / GOOD: {stat.goodCount} / MISS: {stat.missCount}</p>
           <p>{nickname}</p>
         </div>
         <button
           className="btn btn-primary"
-          onClick={() => {
-            setStageIndex(0)
-            setStat(INITIAL_STAT)
-            setPhase('preview')
-          }}
+          onClick={() => { setStageIndex(0); setStat(INITIAL_STAT); setPhase('preview') }}
         >
           다시 하기
         </button>
@@ -107,17 +120,12 @@ export function GameScreen({ nickname }: GameScreenProps) {
         gauge={stat.gauge}
         score={stat.score}
       />
-
       {phase === 'preview' && (
-        <PreviewStage
-          stageData={currentStage}
-          onPreviewEnd={handlePreviewEnd}
-        />
+        <PreviewStage stageData={stageWithShuffle} onPreviewEnd={handlePreviewEnd} />
       )}
-
       {phase === 'playing' && (
         <PlayStage
-          stageData={currentStage}
+          stageData={stageWithShuffle}
           stat={stat}
           onStatUpdate={handleStatUpdate}
           onStageComplete={handleStageComplete}
